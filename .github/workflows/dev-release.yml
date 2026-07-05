@@ -7,23 +7,29 @@ env:
 
 jobs:
   csharp-release:
-    runs-on: windows-latest
+    runs-on: windows-2022  # 明确使用windows-2022
     steps:
       - name: Set up Python
-        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.1
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v1.3
+        with:
+          vs-version: '17.0'
 
       - name: Configure CMake
-        run: cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "${{env.CMAKE_GENERATOR}}" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: |
+          # 设置VS环境变量
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "${{env.CMAKE_GENERATOR}}" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        shell: cmd
 
       - name: Build
         run: cmake --build ${{github.workspace}}/csharp-api/build --config ${{env.BUILD_TYPE}} --target ALL_BUILD
@@ -39,31 +45,36 @@ jobs:
         run: 7z a ${{github.workspace}}/csharp-api.zip reframework
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
+        uses: actions/upload-artifact@v4
         with:
           name: csharp-api
           path: ${{github.workspace}}/csharp-api.zip
           if-no-files-found: error
 
   dev-release:
-    runs-on: windows-latest
+    runs-on: windows-2022  # 明确使用windows-2022
     strategy:
       matrix:
         target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE4, RE7, RE7_TDB49, RE8, RE9, DMC5, MHRISE, SF6, DD2, MHWILDS, PRAGMATA, MHSTORIES3]
       max-parallel: 8
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.1
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v1.3
+        with:
+          vs-version: '17.0'
 
       - name: Configure CMake
-        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "${{env.CMAKE_GENERATOR}}" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "${{env.CMAKE_GENERATOR}}" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        shell: cmd
 
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
@@ -86,24 +97,24 @@ jobs:
           7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.target}}
           path: ${{github.workspace}}/${{matrix.target}}.zip
           if-no-files-found: error
 
   nightly-push:
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [dev-release, csharp-release]
     if: github.ref == 'refs/heads/master'
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Download artifacts
-        uses: actions/download-artifact@c850b930e6ba138125429b7e5c93fc707a7f8427
+        uses: actions/download-artifact@v4
         with:
           path: ${{github.workspace}}/artifacts
 
@@ -114,7 +125,7 @@ jobs:
         shell: powershell
 
       - name: Create Release
-        uses: ncipollo/release-action@6c75be85e571768fa31b40abf38de58ba0397db5
+        uses: ncipollo/release-action@v1
         with:
           repo: REFramework-nightly
           owner: praydog
